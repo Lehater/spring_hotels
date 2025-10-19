@@ -1,0 +1,23 @@
+@startuml
+!theme plain
+entity "users" as U {
+  * id : BIGINT <<PK>>
+  --
+  username : VARCHAR(64) <<UNIQUE>>
+  password_hash : VARCHAR(200)
+  role : VARCHAR(20)  -- USER | ADMIN
+  created_at : TIMESTAMP
+}
+entity "bookings" as B {
+  * id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK U.id>>
+  room_id : BIGINT
+  start_date : DATE
+  end_date   : DATE
+  status : VARCHAR(20)  -- PENDING|CONFIRMED|CANCELLED
+  request_id : VARCHAR(64) <<UNIQUE>>
+  created_at : TIMESTAMP
+}
+U ||-o{ B : "user_id"
+@enduml

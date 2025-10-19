@@ -1,0 +1,8 @@
+@startuml
+[*] --> PENDING
+PENDING --> CONFIRMED : confirmOk()
+PENDING --> CANCELLED : confirmFail()/compensate()
+CONFIRMED --left> CANCELLED : userCancel()? [optional]
+CONFIRMED --> [*]
+CANCELLED --> [*]
+@enduml

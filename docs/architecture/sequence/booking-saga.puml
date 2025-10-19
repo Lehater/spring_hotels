@@ -1,0 +1,17 @@
+@startuml
+autonumber
+actor User
+participant Gateway
+participant BS as "Booking Service"
+participant HMS as "Hotel Service"
+
+User -> Gateway: POST /api/booking (JWT, X-Request-Id)
+Gateway -> BS: /booking
+BS -> BS: TX: create Booking{PENDING}
+BS -> HMS: confirm-availability (timeout+retries)
+HMS -> HMS: check availability; create hold (idempotent)
+HMS --> BS: 200 (HELD)
+BS -> BS: set Booking->CONFIRMED
+BS --> Gateway: 201 Created
+Gateway --> User: 201 Created
+@enduml

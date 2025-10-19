@@ -1,0 +1,32 @@
+@startuml
+!theme plain
+entity "hotels" as H {
+  * id : BIGINT <<PK>>
+  --
+  name : VARCHAR(200)
+  address : VARCHAR(300)
+}
+entity "rooms" as R {
+  * id : BIGINT <<PK>>
+  --
+  hotel_id : BIGINT <<FK H.id>>
+  number : VARCHAR(50)
+  available : BOOLEAN
+  times_booked : INT
+  -- UNIQUE(hotel_id, number)
+}
+entity "room_holds" as RH {
+  * id : BIGINT <<PK>>
+  --
+  room_id : BIGINT <<FK R.id>>
+  start_date : DATE
+  end_date   : DATE
+  booking_id : VARCHAR(64)
+  request_id : VARCHAR(64) <<UNIQUE>>
+  status : VARCHAR(20)  -- HELD|RELEASED|COMMITTED
+  expires_at : TIMESTAMP
+  -- IDX(room_id, start_date, end_date)
+}
+H ||-o{ R : "hotel_id"
+R ||-o{ RH : "room_id"
+@enduml

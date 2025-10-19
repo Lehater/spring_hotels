@@ -1,0 +1,22 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_WITH_LEGEND()
+Person(user, "User", "Гость/пользователь/администратор")
+Container_Boundary(sys, "Hotel Booking System") {
+  Container(gw, "API Gateway", "Spring Cloud Gateway", "Маршрутизация, проброс JWT, X-Request-Id")
+  Container(bs, "Booking Service", "Spring Boot", "JWT, бронирования, сага")
+  Container(hms, "Hotel Mgmt Service", "Spring Boot", "Отели/номера, удержания, рекомендации")
+  Container(eu, "Eureka Server", "Spring Cloud Eureka", "Service discovery")
+  ContainerDb(h2b, "H2 (Booking)", "H2 in-memory", "users, bookings")
+  ContainerDb(h2h, "H2 (Hotel)", "H2 in-memory", "hotels, rooms, room_holds")
+}
+Rel(user, gw, "HTTP(S) /api/**", "JWT")
+Rel(gw, bs, "lb://booking-service", "JWT + X-Request-Id")
+Rel(gw, hms, "lb://hotel-service", "JWT + X-Request-Id")
+Rel(bs, hms, "HTTP (internal)", "confirm/release/recommend")
+Rel(bs, h2b, "JPA/Hibernate", "TX local")
+Rel(hms, h2h, "JPA/Hibernate", "TX local")
+Rel(gw, eu, "Discovery")
+Rel(bs, eu, "Register/Discover")
+Rel(hms, eu, "Register/Discover")
+@enduml

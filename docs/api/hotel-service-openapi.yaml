@@ -1,0 +1,220 @@
+openapi: 3.0.3
+info:
+  title: Hotel Management Service API
+  version: "1.0.0"
+servers:
+  - url: http://hotel-service
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      description: Идемпотентность/корреляция запроса
+      schema: { type: string, format: uuid }
+    XBookingId:
+      name: X-Booking-Id
+      in: header
+      required: false
+      description: Сквозной идентификатор бронирования
+      schema: { type: string, format: uuid }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+        correlationId: { type: string }
+    HotelDto:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        address: { type: string }
+    CreateHotelRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        address: { type: string, maxLength: 300 }
+    RoomDto:
+      type: object
+      required: [id, hotelId, number, available, timesBooked]
+      properties:
+        id: { type: integer, format: int64 }
+        hotelId: { type: integer, format: int64 }
+        number: { type: string }
+        available: { type: boolean }
+        timesBooked: { type: integer, format: int32 }
+    CreateRoomRequest:
+      type: object
+      required: [hotelId, number]
+      properties:
+        hotelId: { type: integer, format: int64 }
+        number:  { type: string }
+        available: { type: boolean, default: true }
+    ConfirmAvailabilityRequest:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate: { type: string, format: date }
+        endDate:   { type: string, format: date }
+    ConfirmAvailabilityResponse:
+      type: object
+      required: [holdId, status]
+      properties:
+        holdId: { type: integer, format: int64 }
+        status: { type: string, enum: [HELD, RELEASED, COMMITTED] }
+paths:
+  /api/hotels:
+    post:
+      summary: Создать отель (ADMIN)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateHotelRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelDto' }
+        '403': { description: Требуется роль ADMIN, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      summary: Список отелей (USER)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Ок
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/HotelDto' }
+  /api/rooms:
+    post:
+      summary: Создать номер (ADMIN)
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRoomRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomDto' }
+        '404':
+          description: Указанный hotelId не найден
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: Дубликат номера в рамках отеля
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '403': { description: Требуется роль ADMIN, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      summary: Список номеров (USER)
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: hotelId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: available
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Ок
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RoomDto' }
+  /api/rooms/recommend:
+    get:
+      summary: Рекомендованные свободные номера (USER)
+      description: Свободные на период номера, отсортированные по timesBooked ASC, затем id ASC
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: hotelId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: start
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: end
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 10, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: Ок
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RoomDto' }
+  /api/rooms/{id}/confirm-availability:
+    post:
+      summary: Подтвердить доступность и удержать слот (INTERNAL)
+      description: INTERNAL — не публикуется через Gateway
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XBookingId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmAvailabilityRequest' }
+      responses:
+        '200':
+          description: Слот удержан (HELD) или удержание подтверждено идемпотентно
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmAvailabilityResponse' }
+        '404':
+          description: Номер не найден
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: Конфликт занятости или available=false
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /api/rooms/{id}/release:
+    post:
+      summary: Снять удержание (INTERNAL)
+      description: INTERNAL — не публикуется через Gateway; идемпотентный no-op при повторе
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XBookingId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: RELEASED или no-op
+        '404':
+          description: Номер не найден
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

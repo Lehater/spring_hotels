@@ -1,0 +1,13 @@
+# Observability — Metrics
+- BS: 
+  - booking_create_total{status}, 
+  - booking_confirm_attempts_total, 
+  - booking_confirm_duration_seconds, 
+  - booking_release_total{result}
+- HMS: 
+  - hms_hold_confirm_total{result}, 
+  - hms_hold_release_total{result}, 
+  - hms_recommend_compute_seconds
+- Общие: 
+  - http_server_requests_seconds, 
+  - application_up

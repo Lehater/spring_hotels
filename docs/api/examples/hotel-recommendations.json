@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "hotelId": 1,
+    "number": "101",
+    "available": true,
+    "timesBooked": 0
+  },
+  {
+    "id": 2,
+    "hotelId": 1,
+    "number": "102",
+    "available": true,
+    "timesBooked": 1
+  }
+]

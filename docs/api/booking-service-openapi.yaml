@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Booking Service API
+  version: "1.0.0"
+servers:
+  - url: http://booking-service
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      description: Идемпотентность/корреляция запроса
+      schema: { type: string, format: uuid }
+    XBookingId:
+      name: X-Booking-Id
+      in: header
+      required: false
+      description: Сквозной идентификатор бронирования
+      schema: { type: string, format: uuid }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string, example: CONFLICT }
+        message: { type: string, example: "Room is not available for given dates" }
+        details:
+          type: object
+          additionalProperties: true
+        correlationId:
+          type: string
+          description: Значение X-Request-Id, если применимо
+    TokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, example: eyJhbGciOi... }
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 6, maxLength: 128 }
+    AuthRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    BookingStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, CANCELLED]
+    CreateBookingRequest:
+      type: object
+      required: [hotelId, startDate, endDate, autoSelect]
+      properties:
+        hotelId:   { type: integer, format: int64 }
+        roomId:    { type: integer, format: int64, nullable: true, description: Игнорируется при autoSelect=true }
+        startDate: { type: string, format: date }
+        endDate:   { type: string, format: date }
+        autoSelect:{ type: boolean }
+    BookingResponse:
+      type: object
+      required: [id, hotelId, roomId, startDate, endDate, status]
+      properties:
+        id:        { type: integer, format: int64 }
+        hotelId:   { type: integer, format: int64 }
+        roomId:    { type: integer, format: int64 }
+        startDate: { type: string, format: date }
+        endDate:   { type: string, format: date }
+        status:    { $ref: '#/components/schemas/BookingStatus' }
+paths:
+  /user/register:
+    post:
+      summary: Регистрация пользователя и выдача JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '409':
+          description: Имя пользователя занято
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /user/auth:
+    post:
+      summary: Аутентификация и выдача JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
+      responses:
+        '200':
+          description: Успешная аутентификация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401':
+          description: Неверные учётные данные
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /booking:
+    post:
+      summary: Создать бронирование
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XBookingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBookingRequest' }
+      responses:
+        '201':
+          description: Бронирование успешно подтверждено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingResponse' }
+        '409':
+          description: Конфликт занятости/недоступности номера
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '504':
+          description: Тайм-аут при подтверждении в Hotel Service; заявка отменена (CANCELLED)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /bookings:
+    get:
+      summary: История бронирований текущего пользователя
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Список бронирований
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BookingResponse' }
+        '401':
+          description: Требуется JWT
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  /booking/{id}:
+    get:
+      summary: Получить бронирование по id
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Найдено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingResponse' }
+        '403':
+          description: Доступ к чужой записи запрещён
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: Не найдено
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    delete:
+      summary: Отменить бронирование
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Отменено
+        '404':
+          description: Не найдено
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
