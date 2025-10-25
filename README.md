@@ -48,28 +48,27 @@ export AUTH_JWT_SECRET=dev-secret-0123456789ABCDEF0123456789ABCDEF0123456789ABCD
 export SPRING_PROFILES_ACTIVE=dev-test
 
 # 3) Запуск по модулям (в отдельных терминалах)
-mvn -pl :discovery-eureka spring-boot:run	 # http://localhost:8761
-mvn -pl :hotel-service spring-boot:run		# http://localhost:8081
-mvn -pl :booking-service spring-boot:run	  # http://localhost:8082
-mvn -pl :gateway spring-boot:run			  # http://localhost:8080
+make run-eureka
+make run-hms
+make run-bs
+make run-gw
 
-# (или) одна цель для сборки+проверок
-mvn -Pdev-test verify
 ```
 
 ## Конфигурация JWT
 
 Во всех сервисах используется один симметричный секрет **HS256**:
+
 ```yaml
 auth:
   jwt:
-	secret: ${AUTH_JWT_SECRET:...}  # задаётся через ENV
+  secret: ${AUTH_JWT_SECRET:...}  # задаётся через ENV
 ```
 
 - **booking-service** выпускает токен с claim `role` (`ROLE_USER`/`ROLE_ADMIN`).
 - **gateway / hotel-service / booking-service** валидируют токены одним и тем же секретом.
 
->Для прод-окружения используйте отдельный Identity Provider (Keycloak/OAuth2) и асимметричную криптографию.
+> Для прод-окружения используйте отдельный Identity Provider (Keycloak/OAuth2) и асимметричную криптографию.
 
 ## Быстрый e2e через Gateway (8080)
 
@@ -144,7 +143,7 @@ curl -s http://localhost:8080/bookings \
 - `POST /internal/rooms/{id}/confirm-availability` (только внутри периметра; ADMIN)
 - `POST /internal/rooms/{id}/release?requestId=...` (ADMIN)
 
->Пути `/internal/**` недоступны через Gateway (404). Они вызываются только сервис-клиентами.
+> Пути `/internal/**` недоступны через Gateway (404). Они вызываются только сервис-клиентами.
 
 ## Надёжность и согласованность
 
@@ -167,8 +166,10 @@ curl -s http://localhost:8080/bookings \
 ## Тесты
 
 - Учебные интеграционные тесты:
-    - **Booking-Service**: регистрация/логин; happy booking (WireMock HMS); идемпотентность; конфликт/тайм-аут; доступ к своим; expired JWT.
-    - **Hotel-Service**: CRUD и списки; рекомендации (limit/порядок); `confirm/release` (успех/409/идемпотентность); проверка ролей на `/internal/**`; валидации + error envelope.
+    - **Booking-Service**: регистрация/логин; happy booking (WireMock HMS); идемпотентность; конфликт/тайм-аут; доступ к
+      своим; expired JWT.
+    - **Hotel-Service**: CRUD и списки; рекомендации (limit/порядок); `confirm/release` (успех/409/идемпотентность);
+      проверка ролей на `/internal/**`; валидации + error envelope.
     - **Gateway**: маршрутизация 200/404; deny `/internal/**`; проброс/генерация `X-Request-Id`; CORS; JWT-защита.
 - Запуск:
   ```bash
